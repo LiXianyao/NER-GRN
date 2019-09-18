@@ -9,7 +9,7 @@ class InceptionCNN(nn.Module):
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.kernel_dim = kernel_dim
+        self.kernel_dim = kernel_dim  # 每个核的宽度（word embedding + char embedding)
         self.inception_mode = inception_mode
 
         if self.inception_mode == 1:
@@ -36,9 +36,9 @@ class InceptionCNN(nn.Module):
 
         # batch x out x max_seq x 1
         if self.inception_mode == 1:
-            input_1 = F.tanh(self.conv_1(input_))[:, :, :max_seq, :]
-            input_3 = F.tanh(self.conv_3(input_))[:, :, :max_seq, :]
-            input_5 = F.tanh(self.conv_5(input_))[:, :, :max_seq, :]
+            input_1 = torch.tanh(self.conv_1(input_))[:, :, :max_seq, :]
+            input_3 = torch.tanh(self.conv_3(input_))[:, :, :max_seq, :]
+            input_5 = torch.tanh(self.conv_5(input_))[:, :, :max_seq, :]
 
             # # batch x (3*out) x max_seq --> batch x max_seq x (3*out)
             # linear_input = torch.cat([input_1.squeeze(3), input_3.squeeze(3), input_5.squeeze(3)], 1).transpose(1, 2)
@@ -53,7 +53,7 @@ class InceptionCNN(nn.Module):
             # batch x out_channels x max_seq x 1
             output = F.max_pool2d(pooling_input, kernel_size=(1, pooling_input.size(3)))
         elif self.inception_mode == 2:
-            output = F.tanh(self.conv_3(input_))[:, :, :max_seq, :]
+            output = torch.tanh(self.conv_3(input_))[:, :, :max_seq, :]
 
         # batch x out x max_seq -> batch x max_seq x out
         output = output.squeeze(3).transpose(1, 2)
