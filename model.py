@@ -188,7 +188,7 @@ class GRN_CRF(nn.Module):
             max_pool_out = F.max_pool2d(chars_cnn_out, kernel_size=(chars_cnn_out.size(2), 1))
             chars_embeds = max_pool_out.squeeze(2).squeeze(2)
 
-            # restore
+            # restore, 做卷积的时候是按 词 为单位卷积的，需要还原回按 句子为单位
             chars_embeds_temp = torch.zeros((batch_size, max_seq_length, chars_embeds.size(1)), dtype=torch.float)
             if self.use_gpu:
                 chars_embeds_temp = chars_embeds_temp.to(device)
@@ -203,8 +203,9 @@ class GRN_CRF(nn.Module):
         embeds = torch.cat([embeds, chars_embeds], 2)
 
         embeds = self.dropout(embeds)
+        """representation Layer End"""
 
-        lstm_out = self.inception_cnn(embeds)
+        lstm_out = self.inception_cnn(embeds)  #"""Context Layer"""
 
         if self.enable_context:
             context_out = self.context_layer1(lstm_out, sentence_masks, device)

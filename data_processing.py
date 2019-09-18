@@ -339,7 +339,7 @@ def generate_mini_batch_input(data_loader_conll, mini_batch_idx, mappings, char_
         sentence_masks.append(_mask)
         words.append(_words)
         tags.append(_tags)
-        chars.extend(_chars)
+        chars.extend(_chars)   # 注意这里用的是extend不是append，所以最后的维数是allwords * wordlen
         str_words.append(_str_words)
 
     sentence_char_position_map = {}
