@@ -31,7 +31,7 @@ def load_prebuilt_word_embedding(embedding_path, embedding_dim):
                 word = word_embedding[0]
                 embedding = [float(val) for val in word_embedding[1:]]
                 if word in word_embedding_map.keys():
-                    continue
+                    continue  # 词向量里产生了重复值
                 else:
                     word_embedding_map[word] = embedding
 
@@ -77,7 +77,7 @@ def create_mapping_tags(tags):
     tag_to_id = create_mapping(tags)
     if any(x in tag_to_id.keys() for x in [Constants.Tag_End, Constants.Tag_Start]):
         raise Exception("Error: <START> or <END> cannot appear in the tag set")
-    else:
+    else:  # 追加两个自定义的tag <START>, <END>?
         tag_to_id[Constants.Tag_Start] = len(tag_to_id)
         tag_to_id[Constants.Tag_End] = len(tag_to_id)
 
@@ -98,13 +98,13 @@ def create_mapping_words(words, embedding_path, embedding_dim, to_lower=False, f
     :return: the word_to_id and the id_to_word lookup tables
     """
 
-    word_to_id = create_mapping(words, freq_threshold)
+    word_to_id = create_mapping(words, freq_threshold)  # 生成训练集的word->id映射
     prebuilt_word_embedding = dict()
 
     if embedding_path is not None and len(embedding_path) > 0:
-        prebuilt_word_embedding = load_prebuilt_word_embedding(embedding_path, embedding_dim)
+        prebuilt_word_embedding = load_prebuilt_word_embedding(embedding_path, embedding_dim)  # 返回值就是 一个dict{word - > float embedding}
         sorted_prebuilt_words = sorted(prebuilt_word_embedding.keys())
-        for word in sorted_prebuilt_words:
+        for word in sorted_prebuilt_words:  # 将预训练词典中多出来的词补进word->id映射
             word = word.lower() if to_lower else word
             if word not in word_to_id.keys():
                 word_to_id[word] = len(word_to_id)
@@ -142,7 +142,7 @@ def create_mapping_chars(chars):
 def load_dataset_conll(data_file, label_schema=LabellingSchema.IOBES, digits_to_zeros=False, remove_doc_start=True):
     """
     checked
-    Read sentences from a CoNLL format data file
+    Read sentences from a CoNLL format data file: CoNLL format:  [word pos chunk ner]，且NER是IOB1类型（只有两个实体连在一起的时候，第二个实体的首词才是B）
     :param data_file: string, path of the data set
     :param label_schema: enum of LabellingSchema, the labelling scheme
     :param digits_to_zeros: bool, transfer all digits into zeros
@@ -151,15 +151,15 @@ def load_dataset_conll(data_file, label_schema=LabellingSchema.IOBES, digits_to_
     # read the data file
     sentences = []
     tags = []
-    sentence = []
-    sentence_tag = []
+    sentence = []  # 当前样本句子的词
+    sentence_tag = []  # 当前样本句子的tag
     for line in codecs.open(data_file, mode="r", encoding="utf-8"):
         line = line.strip()
-        if not line:
+        if not line:   # 空行，一个样本结束
             if len(sentence) > 0 and ((not remove_doc_start) or ("DOCSTART" not in sentence[0])):
-                sentences.append(sentence)
+                sentences.append(sentence)  # 数据首行可能有个 DOCSTART，不要
                 tags.append(sentence_tag)
-            sentence = []
+            sentence = []   # 复位当前样本的内容
             sentence_tag = []
         else:
             words = line.split()
@@ -168,7 +168,7 @@ def load_dataset_conll(data_file, label_schema=LabellingSchema.IOBES, digits_to_
             sentence_tag.append(words[-1])
 
     if len(sentence) > 0 and ((not remove_doc_start) or ("DOCSTART" not in sentence[0])):
-        sentences.append(sentence)
+        sentences.append(sentence)  # 最后一句
         tags.append(sentence_tag)
 
     assert len(sentences) > 0
@@ -212,7 +212,7 @@ def create_mapping_dataset_conll(data_paths,
     all_sentences = []
     all_sentence_tags = []
     for data_path in data_paths:
-        dataset_sentences, dataset_tags = load_dataset_conll(data_path, label_schema, digits_to_zeros)
+        dataset_sentences, dataset_tags = load_dataset_conll(data_path, label_schema, digits_to_zeros)  # 返回值是两个samplenum * seqlen的list, 一个是所有的词，一个是所有的label(转过格式）
         all_sentences.extend(dataset_sentences)
         all_sentence_tags.extend(dataset_tags)
 
@@ -230,10 +230,10 @@ def create_mapping_dataset_conll(data_paths,
 
         words.extend([word.lower() if word_to_lower else word for word in sentence_words])
         tags.extend(sentence_tags)
-        for wi, sentence_word in enumerate(sentence_words):
+        for wi, sentence_word in enumerate(sentence_words):  # 拆字
             sentence_word_chars = [c for c in sentence_word]
             chars.extend(sentence_word_chars)
-            max_word_length = max_word_length if max_word_length >= len(sentence_word_chars) else len(sentence_word_chars)
+            max_word_length = max_word_length if max_word_length >= len(sentence_word_chars) else len(sentence_word_chars)  # 记录字母数最长的词
 
     tag_to_id, id_to_tag = create_mapping_tags(tags)
     word_to_id, id_to_word, prebuilt_word_embedding = create_mapping_words(words,
@@ -303,22 +303,22 @@ def generate_mini_batch_input(data_loader_conll, mini_batch_idx, mappings, char_
 
     tag_to_id = mappings["tag_to_id"]
     word_to_id = mappings["word_to_id"]
-    char_to_id = mappings["char_to_id"]
+    char_to_id = mappings["char_to_id"]  # 结果mappings传进来是为了做padding……
 
     sentence_masks = []
     words = []
     sentence_char_lengths = []
     chars = []
     chars_positions = []
-    tags = []
+    tags = []  # 这个被变成了tensor
     str_words = []
-    unaligned_tags = []
+    unaligned_tags = []  # 这个是原样的副本？
 
     for si, sentence in enumerate(sentences):
         _words = sentence["words"]
         _chars = sentence["chars"]
         _tags = sentence["tags"]
-        _str_words = sentence["str_words"]
+        _str_words = sentence["str_words"]  # 只有str_words是原始词，剩下的都是mapping后的结果了
         unaligned_tags.append(_tags.copy())
 
         length = len(_words)
@@ -349,9 +349,9 @@ def generate_mini_batch_input(data_loader_conll, mini_batch_idx, mappings, char_
         sorted_chars_with_positions = sorted(chars_with_positions, key=lambda x: len(x[0]), reverse=True)
         chars, chars_positions, sentence_char_lengths = zip(*sorted_chars_with_positions)
 
-    sentence_char_position_map = dict([(j, chars_positions[j]) for j in range(len(chars_positions))])
+    sentence_char_position_map = dict([(j, chars_positions[j]) for j in range(len(chars_positions))])  # 将每个句子的所有词的字结构打乱顺序
     for word_chars in chars:
-        word_chars.extend([char_to_id[Constants.Char_Pad]] * (max_word_length - len(word_chars)))
+        word_chars.extend([char_to_id[Constants.Char_Pad]] * (max_word_length - len(word_chars)))  # 每个词的字向量补上padding
 
     sentence_masks_tensor = torch.tensor(sentence_masks, requires_grad=False, dtype=torch.long)
     words_tensor = torch.tensor(words, requires_grad=False, dtype=torch.long)

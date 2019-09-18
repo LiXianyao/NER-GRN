@@ -54,7 +54,7 @@ optparser.add_option(
     "--word_threshold", default="3",
     type='int',
     help="Only words with the corresponding threshold larger than or equal to word_threshold will be preserved"
-)
+)  # 只处理大于或者等于3个长度的词？
 optparser.add_option(
     "--digits_to_zeros", default="0",
     type='int', help="Replace digits with 0"
@@ -128,7 +128,7 @@ optparser.add_option(
     type='int', help='Mini-batch size'
 )
 optparser.add_option(
-    '--cuda', default='0',
+    '--cuda', default='1',
     type='int', help='Index of the cuda device'
 )
 optparser.add_option(
@@ -273,7 +273,7 @@ if not os.path.exists(models_path):
 if not os.path.exists(logs_path):
     os.makedirs(logs_path)
 
-# create the mappings
+# create the mappings of TrainSet, if exist just load
 if os.path.exists(mapping_file):
     mappings = pickle.load(open(mapping_file, "rb"))
     prebuilt_word_embedding = load_prebuilt_word_embedding(prebuilt_embed_path,
@@ -368,7 +368,7 @@ last_model_epoch = -1
 model.train(True)
 for epoch in range(max_epoch):
     epoch_start = time.time()
-    train_indecies = np.random.permutation(len(train_set))
+    train_indecies = np.random.permutation(len(train_set))  # 每次训练都对训练集重新排序
     full_logs = []
     if epoch == 0:
         if verbose:

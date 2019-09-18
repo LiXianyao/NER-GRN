@@ -66,6 +66,8 @@ class GRN_CRF(nn.Module):
             self.pre_word_embeds = False
 
         self.dropout = nn.Dropout(dropout)
+
+        ## context layer
         cnn_input_dim = (word_embedding_dim + char_lstm_dim * (2 if char_lstm_bidirect else 1))\
             if char_mode == CharEmbeddingSchema.LSTM else (word_embedding_dim + char_cnn_output)
         cnn_output_dim = word_lstm_dim * (2 if word_lstm_bidirect else 1)
@@ -80,7 +82,7 @@ class GRN_CRF(nn.Module):
         elif self.inception_mode == 0:
             cnn_output_dim = cnn_input_dim
 
-        if self.enable_context:
+        if self.enable_context:  # 写作context Layer, 其实是relation Layer
             self.context_layer1 = ContextLayer(cnn_output_dim, False, use_gpu)
 
         self.hidden2tag = nn.Linear(cnn_output_dim, self.tag_set_size)
