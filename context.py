@@ -1,7 +1,6 @@
 import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class ContextLayer(nn.Module):
@@ -45,11 +44,11 @@ class ContextLayer(nn.Module):
         input_row_expanded = input.view(batch_size, 1, max_seq_size, embed_size) \
             .expand(batch_size, max_seq_size, max_seq_size, embed_size)
 
-        forget_result = torch.mul(input_row_expanded, forget_gate)
+        forget_result = torch.mul(input_row_expanded, forget_gate)  #这里是按元素乘法
 
         # start_t0 = time.time()
         selection_mask = input_masks.view(batch_size, max_seq_size, 1) \
-            .mul(input_masks.view(batch_size, 1, max_seq_size))
+            .mul(input_masks.view(batch_size, 1, max_seq_size))  # batch, seq, seq
 
         if self.exclusive_context:
             eye_matrix_seed = torch.eye(max_seq_size).byte()
@@ -66,15 +65,15 @@ class ContextLayer(nn.Module):
             .expand(batch_size, max_seq_size, max_seq_size, self.feature_dim)
 
         # batch x max_seq x max_seq x embed
-        forget_result_masked = torch.mul(forget_result, selection_mask.float())
+        forget_result_masked = torch.mul(forget_result, selection_mask.float())  # 把seq_len以外的部分置零
 
         # batch x max_seq x embed
-        context_sumup = torch.sum(forget_result_masked, 2)
+        context_sumup = torch.sum(forget_result_masked, 2)  # ri = sum(rij · xj)
 
         # average
         context_vector = torch.div(context_sumup, context_lengths.view(batch_size, 1, 1)
                                    .expand(batch_size, max_seq_size, self.feature_dim).float())
 
-        output_result = F.tanh(context_vector)
+        output_result = torch.tanh(context_vector)
 
         return output_result

@@ -71,6 +71,7 @@ class GRN_CRF(nn.Module):
         cnn_input_dim = (word_embedding_dim + char_lstm_dim * (2 if char_lstm_bidirect else 1))\
             if char_mode == CharEmbeddingSchema.LSTM else (word_embedding_dim + char_cnn_output)
         cnn_output_dim = word_lstm_dim * (2 if word_lstm_bidirect else 1)
+        #batch x max_seq x out
         self.inception_cnn = InceptionCNN(in_channels=1, out_channels=cnn_output_dim, kernel_dim=cnn_input_dim, inception_mode=self.inception_mode)
 
         if self.inception_mode == 1:
@@ -90,7 +91,7 @@ class GRN_CRF(nn.Module):
 
         if use_crf:
             self.transitions = nn.Parameter(
-                torch.zeros(self.tag_set_size, self.tag_set_size))
+                torch.zeros(self.tag_set_size, self.tag_set_size))  # 初始化转移矩阵为0， 并设置 ->tagStart 和Tag_end -> 为不可能（-1000）
             self.transitions.data[tag_to_id[Constants.Tag_Start], :] = Constants.Invalid_Transition
             self.transitions.data[:, tag_to_id[Constants.Tag_End]] = Constants.Invalid_Transition
 
@@ -205,6 +206,7 @@ class GRN_CRF(nn.Module):
         embeds = self.dropout(embeds)
         """representation Layer End"""
 
+        #batch x max_seq x cnn_out
         lstm_out = self.inception_cnn(embeds)  #"""Context Layer"""
 
         if self.enable_context:
@@ -213,14 +215,14 @@ class GRN_CRF(nn.Module):
 
         # batch x max_seq x hidden_state
         lstm_out = self.dropout(lstm_out)
-        # batch x max_seq x tag
+        # batch x max_seq x tag， equation 10的线性变换： Wy pi
         lstm_feats = self.hidden2tag(lstm_out)
 
         return lstm_feats
 
     def _forward_alg(self, feats, sentence_masks, device):
         """
-        checked
+        checked 计算CRF对当前特征表示的输出
         Get alpha values for CRF
         :param feats: LSTM output, batch x max_seq x tag
         :param sentence_masks: binary (0,1) int matrix, batch x max_seq
@@ -233,8 +235,8 @@ class GRN_CRF(nn.Module):
 
         # initialize alpha with a Tensor with values all equal to Constants.Invalid_Transition, 1 x tag
         # batch x 1 x tag
-        forward_var = torch.Tensor(batch_size, 1, self.tag_set_size).fill_(Constants.Invalid_Transition)
-        forward_var[:, 0, self.tag_to_id[Constants.Tag_Start]] = 0.
+        forward_var = torch.Tensor(batch_size, 1, self.tag_set_size).fill_(Constants.Invalid_Transition)  # 初始化为全部不可达
+        forward_var[:, 0, self.tag_to_id[Constants.Tag_Start]] = 0.  # 额外定义的两个状态：句子开始和句子结束，赋值其前向概率为0
 
         all_alphas = torch.zeros((max_seq_length, batch_size, tag_num), dtype=torch.float)
         if self.use_gpu:
@@ -245,11 +247,11 @@ class GRN_CRF(nn.Module):
             # batch x tag
             feat = feats[:, i, :]
             # batch x tag x 1
-            emit_score = feat.view(batch_size, tag_num, 1)
+            emit_score = feat.view(batch_size, tag_num, 1)  # 发射概率=当前字在tag i的 线性变换后值， Wy pi
             # batch x tag x tag
             transition_expanded = self.transitions.view(1, tag_num, tag_num).expand(batch_size, tag_num, tag_num)
             # batch x tag x tag
-            tag_var = forward_var + transition_expanded + emit_score
+            tag_var = forward_var + transition_expanded + emit_score  # forward 是到 上一步 为止的概率累加，后两项的求和是线性CRF
             # batch x tag --> batch x 1 x tag
             new_forward_var = log_sum_exp(tag_var, dim=2)
             forward_var = new_forward_var.unsqueeze(1)
